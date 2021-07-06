@@ -5,6 +5,12 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+type TransactionRepository interface {
+	SaveTransaction(transaction Transaction, creditCard CreditCard) error
+	GetCreditCard(creditCard CreditCard) (CreditCard, error)
+	CreateCreditCard(creditCard CreditCard) error
+}
+
 type Transaction struct {
 	ID string
 	Amount float64
@@ -21,4 +27,14 @@ func NewTransaction() *Transaction {
 	t.CreatedAt = time.Now()
 
 	return t
+}
+
+func (t *Transaction) ProcessAndValidate(creditCard *CreditCard) {
+	if t.Amount + creditCard.Balance > creditCard.Limit {
+		t.Status = "rejected"
+	} else {
+		t.Status = "approved"
+		creditCard.Balance = creditCard.Balance + t.Amount
+	}
+
 }

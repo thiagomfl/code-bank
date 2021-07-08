@@ -4,39 +4,44 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 
-	"github.com/lib/pg"
-	"github.com/thienry/code-bank/domain"
-	"github.com/thienry/code-bank/infra/repository"
+	_ "github.com/lib/pq"
 	"github.com/thienry/code-bank/usecase"
+	"github.com/thienry/code-bank/infra/kafka"
+	"github.com/thienry/code-bank/infra/repository"
+	"github.com/thienry/code-bank/infra/grpc/server"
 )
 
 func main() {
 	db := setupDb()
 	defer db.Close()
-
-	cc := domain.NewCreditCard()
-	cc.Name = "Thiago"
-	cc.Number = "00215153"
-	cc.ExpirationMonth = 10
-	cc.ExpirationYear = 2021
-	cc.CVV = 857
-	cc.Limit = 2000
-	cc.Balance = 0
-
-	repo := repository.NewTransactionRepository(db)
-	repo.CreateCreditCard(*cc)
+	
+	producer := setupKafkaProducer()
+	processTransactionUseCase := setupTransactionUseCase(db, producer)
+	serveGrpc(processTransactionUseCase)
 }
 
-func setupTransactionUseCase(db *sql.DB) usecase.UseCaseTransaction {
+func setupTransactionUseCase(db *sql.DB, producer kafka.KafkaProducer) usecase.UseCaseTransaction {
 	transactionRepository := repository.NewTransactionRepository(db)
-	usecase := usecase.NewUseCaseTransaction(transactionRepository)
-	return usecase
+	useCase := usecase.NewUseCaseTransaction(transactionRepository)
+	useCase.KafkaProducer = producer
+	return useCase
+}
+
+func setupKafkaProducer() kafka.KafkaProducer {
+	producer := kafka.NewKafkaProducer()
+	producer.SetupProducer(os.Getenv("KAFKA_BOOTSTRAP_SERVERS"))
+	return producer
 }
 
 func setupDb() *sql.DB {
-	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s 					sslmode=disable",
-		"db", 5432, "postgres", "root", "codebank",
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		os.Getenv("HOST"),
+		os.Getenv("PORT"),
+		os.Getenv("USER"),
+		os.Getenv("PASSWORD"),
+		os.Getenv("DBNAME"),
 	)
 
 	db, err := sql.Open("postgres", psqlInfo)
@@ -46,4 +51,11 @@ func setupDb() *sql.DB {
 	}
 
 	return db
+}
+
+func serveGrpc(processTransactionUseCase usecase.UseCaseTransaction) {
+	grpcServer := server.NewGRPCServer()
+	grpcServer.ProcessTransactionUseCase = processTransactionUseCase
+	fmt.Println("gRPC server is running...")
+	grpcServer.Serve()
 }

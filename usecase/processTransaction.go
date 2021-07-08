@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"encoding/json"
+	"os"
 	"time"
 
 	"github.com/thienry/code-bank/domain"
@@ -18,7 +19,7 @@ func NewUseCaseTransaction(transactionRepository domain.TransactionRepository) U
 	return UseCaseTransaction{TransactionRepository: transactionRepository}
 }
 
-func (u UseCaseTransaction) processtransaction(transactionDto dto.Transaction) (domain.Transaction, error) {
+func (u UseCaseTransaction) ProcessTransaction(transactionDto dto.Transaction) (domain.Transaction, error) {
 	creditCard := u.hydrateCreditCard(transactionDto)
 
 	ccBalanceAndLimit, err := u.TransactionRepository.GetCreditCard(*creditCard)
@@ -48,7 +49,7 @@ func (u UseCaseTransaction) processtransaction(transactionDto dto.Transaction) (
 		return domain.Transaction{}, err
 	}
 	
-	err = u.KafkaProducer.Publish(string(transactionJson), "payments")
+	err = u.KafkaProducer.Publish(string(transactionJson), os.Getenv("KAFKA_TRANSACTIONS_TOPIC"))
 	if err != nil {
 		return domain.Transaction{}, err
 	}

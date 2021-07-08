@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	_ "github.com/lib/pg"
+	"github.com/lib/pg"
 	"github.com/thienry/code-bank/domain"
 	"github.com/thienry/code-bank/infra/repository"
 	"github.com/thienry/code-bank/usecase"
